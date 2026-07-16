@@ -8,7 +8,12 @@ import { renderPastePage, renderHomePage } from "./html";
 const app = new Hono<{ Bindings: Env }>();
 
 app.get("/authorize", async (c) => {
+  const url = new URL(c.req.url);
+  const rawParams = Object.fromEntries(url.searchParams.entries());
+  console.log("AUTHORIZE GET raw params:", JSON.stringify(rawParams));
+
   const oauthReqInfo = await c.env.OAUTH_PROVIDER.parseAuthRequest(c.req.raw);
+  console.log("AUTHORIZE GET parsed info:", JSON.stringify(oauthReqInfo));
 
   const slug = extractSlugFromResource(oauthReqInfo.resource);
   if (!slug) {
@@ -28,15 +33,20 @@ app.get("/authorize", async (c) => {
 });
 
 app.post("/authorize", async (c) => {
-  const body = await c.req.parseBody();
-  const apiKey = (body["api_key"] as string)?.trim();
-  const oauthParamsB64 = body["oauth_params"] as string;
+  const text = await c.req.text();
+  console.log("AUTHORIZE POST raw body:", text.substring(0, 200));
+  
+  // Manual parse
+  const params = new URLSearchParams(text);
+  const apiKey = params.get("api_key")?.trim();
+  const oauthParamsB64 = params.get("oauth_params") as string;
 
   if (!apiKey) {
     return c.text("API key is required.", 400);
   }
   if (!oauthParamsB64) {
     return c.text("Missing OAuth parameters.", 400);
+    console.log("oauthParamsB64 is undefined. keys:", Array.from(params.keys()).join(","));
   }
 
   let oauthReqInfo: any;
@@ -102,6 +112,13 @@ app.post("/api/slugs", async (c) => {
 app.get("/", (c) => {
   const origin = new URL(c.req.url).origin;
   return c.html(renderHomePage(origin));
+});
+
+app.get("/debug/:slug", async (c) => {
+  const slug = c.req.param("slug");
+  const config = await getSlugConfig(c.env, slug);
+  if (!config) return c.json({ error: "slug not found" }, 404);
+  return c.json({ slug, config, keyMask: config.auth_header_prefix + "***" });
 });
 
 export { app as authApp };

@@ -8,14 +8,17 @@ export const proxyHandler = {
     ctx: ExecutionContext
   ): Promise<Response> {
     const { apiKey, slug } = (ctx as any).props as ProxyProps;
+    console.log("PROXY", JSON.stringify({ slug, apiKeyPrefix: apiKey.substring(0, 20) }));
 
     const config = await getSlugConfig(env, slug);
     if (!config) {
+      console.log("PROXY config not found for slug:", slug);
       return new Response(
         JSON.stringify({ error: "Slug configuration not found" }),
         { status: 502, headers: { "Content-Type": "application/json" } }
       );
     }
+    console.log("PROXY config upstream:", config.upstream_url);
 
     const requestUrl = new URL(request.url);
     const upstreamUrl = new URL(config.upstream_url);
